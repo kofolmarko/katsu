@@ -39,12 +39,12 @@ export const PSP_BUTTON_ACTIONS: Record<number, string> = {
   7:  'cross',
   8:  'square',
   9:  'ps',           // large button, leftmost on front strip
-  10: 'mute',
-  11: 'brightness',
-  12: 'select',
-  13: 'start',
-  14: 'volume_down',
-  15: 'volume_up',
+  10: 'volume_down',
+  11: 'volume_up',
+  12: 'brightness',
+  13: 'mute',
+  14: 'select',
+  15: 'start',
 }
 
 export const SCENE_CONFIG = {
