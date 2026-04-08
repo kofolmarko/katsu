@@ -1,10 +1,23 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useGLTF } from '@react-three/drei'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
-import { PSP_CONFIG } from '@/lib/config'
+import { PSP_BUTTON_ACTIONS, PSP_CONFIG, PSP_IFRAME_ID } from '@/lib/config'
+
+const BUTTON_NAME_RE = /^button(\d+)_/
+
+function getButtonAction(name: string): string | undefined {
+  const m = name.match(BUTTON_NAME_RE)
+  if (!m) return undefined
+  return PSP_BUTTON_ACTIONS[parseInt(m[1], 10)]
+}
+
+function sendPSPAction(action: string) {
+  const el = document.getElementById(PSP_IFRAME_ID) as HTMLIFrameElement | null
+  el?.contentWindow?.postMessage({ type: 'psp_button', action }, '*')
+}
 
 interface PSPModelProps {
   onClick?: () => void
@@ -58,17 +71,35 @@ const beamFrag = /* glsl */`
 export default function PSPModel({ onClick, clickable = false, onHoverChange, zoomed = false }: PSPModelProps) {
   const { scene } = useGLTF(PSP_CONFIG.model.path)
   const [hovered, setHovered] = useState(false)
+  const [hoveredButton, setHoveredButton] = useState<string | null>(null)
+  // Basis positions for button meshes, captured once — used to animate a press.
+  const buttonBaseRef = useRef<Map<string, THREE.Vector3>>(new Map())
+  // name -> remaining press animation time (seconds)
+  const pressTimersRef = useRef<Map<string, number>>(new Map())
   const groupRef = useRef<THREE.Group>(null)
   const timeRef  = useRef(0)
 
-  // Swap the screen mesh's material for a plain black one. All PSP parts share
-  // a single material in the GLB, so we must clone rather than mutate.
+  // Swap the screen mesh's material for a plain black one and give each button
+  // its own material clone so we can highlight/animate them individually.
+  // All PSP parts share a single material in the GLB, so we must clone rather
+  // than mutate.
   useEffect(() => {
+    const bases = new Map<string, THREE.Vector3>()
     scene.traverse((child) => {
       if (!(child instanceof THREE.Mesh)) return
-      if (!child.name.startsWith('screen_low')) return
-      child.material = new THREE.MeshBasicMaterial({ color: '#000000' })
+      if (child.name.startsWith('screen_low')) {
+        child.material = new THREE.MeshBasicMaterial({ color: '#000000' })
+        return
+      }
+      if (BUTTON_NAME_RE.test(child.name)) {
+        const mat = child.material as THREE.MeshStandardMaterial
+        if (mat?.isMeshStandardMaterial) {
+          child.material = mat.clone()
+        }
+        bases.set(child.name, child.position.clone())
+      }
     })
+    buttonBaseRef.current = bases
   }, [scene])
 
   const { x, y, z } = PSP_CONFIG.screen.position
@@ -87,6 +118,9 @@ export default function PSPModel({ onClick, clickable = false, onHoverChange, zo
     blending: THREE.AdditiveBlending,
   }), [])
 
+  const PRESS_DURATION = 0.18
+  const PRESS_DEPTH = 0.18 // local-space Z depth (PSP face normal)
+
   useFrame((_, delta) => {
     timeRef.current += delta
     beamMaterial.uniforms.uTime.value = timeRef.current
@@ -99,25 +133,105 @@ export default function PSPModel({ onClick, clickable = false, onHoverChange, zo
       0.06
     )
 
-    const g = groupRef.current
-    if (!g) return
+    // Advance per-button press animations. Button meshes live in the GLB's
+    // local frame where +Z is the PSP face-up normal, so pressing = offset -Z.
+    const bases = buttonBaseRef.current
+    const timers = pressTimersRef.current
+    if (timers.size > 0) {
+      for (const [name, remaining] of timers) {
+        const mesh = scene.getObjectByName(name) as THREE.Mesh | null
+        const base = bases.get(name)
+        if (!mesh || !base) { timers.delete(name); continue }
+        const next = remaining - delta
+        if (next <= 0) {
+          mesh.position.copy(base)
+          timers.delete(name)
+        } else {
+          // triangle wave: 0 → 1 → 0 over PRESS_DURATION
+          const t = 1 - next / PRESS_DURATION
+          const k = t < 0.5 ? t * 2 : (1 - t) * 2
+          mesh.position.set(base.x, base.y, base.z - k * PRESS_DEPTH)
+          timers.set(name, next)
+        }
+      }
+    }
   })
 
+  // Whole-PSP hover glow (only in overview mode, so per-button highlight can
+  // stand out when zoomed in).
+  useEffect(() => {
+    const glow = hovered && !zoomed
+    scene.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return
+      if (BUTTON_NAME_RE.test(child.name)) return // handled by per-button effect
+      const mat = child.material as THREE.MeshStandardMaterial
+      if (!mat?.isMeshStandardMaterial) return
+      mat.emissive.set(glow ? '#3366ee' : '#000000')
+      mat.emissiveIntensity = glow ? 0.55 : 0
+    })
+  }, [hovered, zoomed, scene])
+
+  // Per-button hover highlight (only when zoomed — that's when buttons are
+  // individually interactable).
   useEffect(() => {
     scene.traverse((child) => {
       if (!(child instanceof THREE.Mesh)) return
+      if (!BUTTON_NAME_RE.test(child.name)) return
       const mat = child.material as THREE.MeshStandardMaterial
       if (!mat?.isMeshStandardMaterial) return
-      mat.emissive.set(hovered ? '#3366ee' : '#000000')
-      mat.emissiveIntensity = hovered ? 0.55 : 0
+      const isHovered = zoomed && hoveredButton === child.name
+      mat.emissive.set(isHovered ? '#4488ff' : '#000000')
+      mat.emissiveIntensity = isHovered ? 0.8 : 0
     })
-  }, [hovered, scene])
+  }, [hoveredButton, zoomed, scene])
 
   const setHover = (h: boolean) => {
     setHovered(h)
     onHoverChange?.(h)
-    document.body.style.cursor = h && clickable ? 'pointer' : 'auto'
+    if (!zoomed) {
+      document.body.style.cursor = h && clickable ? 'pointer' : 'auto'
+    }
   }
+
+  const handleClick = useCallback((e: ThreeEvent<MouseEvent>) => {
+    if (!zoomed) {
+      // Overview mode — any click on the PSP triggers zoom-in.
+      if (onClick) {
+        e.stopPropagation()
+        onClick()
+      }
+      return
+    }
+    const name = e.object.name
+    const action = getButtonAction(name)
+    if (!action) return
+    e.stopPropagation()
+    sendPSPAction(action)
+    pressTimersRef.current.set(name, PRESS_DURATION)
+  }, [zoomed, onClick])
+
+  const handlePointerOver = useCallback((e: ThreeEvent<PointerEvent>) => {
+    if (!zoomed) {
+      setHover(true)
+      return
+    }
+    e.stopPropagation()
+    const name = e.object.name
+    if (getButtonAction(name)) {
+      setHoveredButton(name)
+      document.body.style.cursor = 'pointer'
+    }
+  }, [zoomed, clickable])
+
+  const handlePointerOut = useCallback((e: ThreeEvent<PointerEvent>) => {
+    if (!zoomed) {
+      setHover(false)
+      return
+    }
+    e.stopPropagation()
+    setHoveredButton(null)
+    document.body.style.cursor = 'auto'
+  }, [zoomed])
 
   return (
     <group ref={groupRef}>
@@ -126,19 +240,10 @@ export default function PSPModel({ onClick, clickable = false, onHoverChange, zo
         scale={PSP_CONFIG.model.scale}
         position={PSP_CONFIG.model.position}
         rotation={PSP_CONFIG.model.rotation}
+        onClick={handleClick}
+        onPointerOver={handlePointerOver}
+        onPointerOut={handlePointerOut}
       />
-
-      {/* Invisible hit area — covers full PSP including the screen region */}
-      <mesh
-        position={PSP_CONFIG.model.position}
-        rotation={PSP_CONFIG.model.rotation}
-        onPointerOver={() => setHover(true)}
-        onPointerOut={() => setHover(false)}
-        onClick={onClick}
-      >
-        <boxGeometry args={[22, 12, 6]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-      </mesh>
 
       <mesh
         position={[x, y + BEAM_HEIGHT / 2, z]}

@@ -20,6 +20,33 @@ export const PSP_CONFIG = {
   }
 }
 
+// DOM id for the embedded xmb-katsu iframe — used to target postMessage().
+export const PSP_IFRAME_ID = 'psp-iframe'
+
+// Maps button mesh index (from sony_psp.glb: buttonN_low_sony_psp_0) to an
+// action string consumed by ../xmb-katsu/src/App.jsx via postMessage.
+// Derived from each mesh's local-space bounding box center:
+//   1-4 : D-pad (left side of PSP)
+//   5-8 : Face buttons (right side)
+//   9-15: Front strip
+export const PSP_BUTTON_ACTIONS: Record<number, string> = {
+  1:  'up',
+  2:  'right',
+  3:  'down',
+  4:  'left',
+  5:  'triangle',
+  6:  'circle',
+  7:  'cross',
+  8:  'square',
+  9:  'ps',           // large button, leftmost on front strip
+  10: 'mute',
+  11: 'brightness',
+  12: 'select',
+  13: 'start',
+  14: 'volume_down',
+  15: 'volume_up',
+}
+
 export const SCENE_CONFIG = {
   camera: {
     fov: 38,

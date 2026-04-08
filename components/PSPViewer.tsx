@@ -6,7 +6,8 @@ import { CameraControls, Environment } from '@react-three/drei'
 import { EffectComposer, Vignette } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import PSPModel from './PSPModel'
-import IframeScreen from './IframeScreen'
+import IframeScreen, { IFRAME_FADE_MS } from './IframeScreen'
+import ScreenTracker from './ScreenTracker'
 import Lights from './Lights'
 import RoomBox from './RoomBox'
 import CoffeeTable from './CoffeeTable'
@@ -40,11 +41,9 @@ function RoomBoundary({ controlsRef }: { controlsRef: React.RefObject<CameraCont
 function DynamicCameraController({
   zoomed,
   controlsRef,
-  onZoomSettled,
 }: {
   zoomed: boolean
   controlsRef: React.RefObject<CameraControls | null>
-  onZoomSettled: (settled: boolean) => void
 }) {
   const { size } = useThree()
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
@@ -57,28 +56,23 @@ function DynamicCameraController({
     const animate = zoomed !== wasZoomed.current  // animate on state change, snap on resize
     wasZoomed.current = zoomed
 
-    // Iframe is hidden while the zoom-in animation plays; flipped true only once the
-    // setLookAt promise settles. Zoom-out hides it immediately.
-    if (!zoomed) onZoomSettled(false)
-
     if (zoomed) {
       const aspect = size.width / size.height
       const vFovRad = (camera.fov * Math.PI) / 180
       const hFovRad = 2 * Math.atan(Math.tan(vFovRad / 2) * aspect)
 
       const pspWorldWidth = 16.76 * PSP_CONFIG.model.scale
-      
+
       // Use screen position as the target - it's the visual center of the PSP
       const targetX = PSP_CONFIG.screen.position.x
       const targetY = PSP_CONFIG.screen.position.y
       const targetZ = PSP_CONFIG.screen.position.z
-      
+
       // Calculate distance to fit PSP width in view
       const D = (pspWorldWidth / SCENE_CONFIG.camera.zoomFill) / (2 * Math.tan(hFovRad / 2))
 
       // Position camera directly above the screen center, looking straight down
-      ctrl.setLookAt(targetX, targetY + D, targetZ, targetX, targetY, targetZ, true)
-        .then(() => onZoomSettled(true))
+      ctrl.setLookAt(targetX, targetY + D, targetZ, targetX, targetY, targetZ, animate)
     } else {
       const [px, py, pz] = SCENE_CONFIG.camera.overview.position
       const [tx, ty, tz] = SCENE_CONFIG.camera.overview.target
@@ -89,29 +83,41 @@ function DynamicCameraController({
   return null
 }
 
+// Must match CameraControls.smoothTime below — delay iframe reveal until the
+// zoom-in animation has visibly settled so the user doesn't see it tracking
+// the PSP across the screen.
+const CAMERA_SMOOTH_MS = 500
+
 export default function PSPViewer() {
   const [zoomed, setZoomed] = useState(false)
-  const [zoomSettled, setZoomSettled] = useState(false)
-  const [iframeReady, setIframeReady] = useState(true)
+  const [iframeVisible, setIframeVisible] = useState(false)
   const cameraControlsRef = useRef<CameraControls>(null)
+  const iframeWrapperRef = useRef<HTMLDivElement>(null)
   const isClampingRef = useRef(false)
   const smoothTimeSet = useRef(false)
 
   useEffect(() => {
     const ctrl = cameraControlsRef.current
     if (ctrl && !smoothTimeSet.current) {
-      ctrl.smoothTime = 500
+      ctrl.smoothTime = CAMERA_SMOOTH_MS
       smoothTimeSet.current = true
     }
   }, [])
 
-  const handleZoomOut = useCallback(() => {
-    setIframeReady(false)
-  }, [])
+  // Reveal the iframe only after the zoom-in animation has settled. On
+  // zoom-out, handleZoomOut hides it first, so nothing to do here for that
+  // direction.
+  useEffect(() => {
+    if (!zoomed) return
+    const t = setTimeout(() => setIframeVisible(true), CAMERA_SMOOTH_MS)
+    return () => clearTimeout(t)
+  }, [zoomed])
 
-  const handleIframeFadeOutComplete = useCallback(() => {
-    setZoomed(false) // Now start the camera zoom-out animation
-    setTimeout(() => setIframeReady(true), 300) // Reset for next zoom-in
+  const handleZoomOut = useCallback(() => {
+    // Fade the iframe out first, then start the camera zoom-out so the user
+    // doesn't watch the iframe shrink along with the PSP.
+    setIframeVisible(false)
+    setTimeout(() => setZoomed(false), IFRAME_FADE_MS)
   }, [])
 
   // Snap back to overview on pointer release
@@ -174,7 +180,11 @@ export default function PSPViewer() {
           width: '100%',
           height: '100%',
           zIndex: 1,
-          pointerEvents: zoomed ? 'none' : 'auto'
+          // Stay interactive in zoomed mode so individual PSP buttons remain
+          // clickable. CameraControls is disabled via `enabled={!zoomed}` so
+          // orbit/zoom inputs are ignored, and the iframe overlay (z:5)
+          // intercepts pointer events on the screen region.
+          pointerEvents: 'auto'
         }}
       >
         <Lights />
@@ -211,8 +221,8 @@ export default function PSPViewer() {
         <DynamicCameraController
           zoomed={zoomed}
           controlsRef={cameraControlsRef}
-          onZoomSettled={setZoomSettled}
         />
+        <ScreenTracker targetRef={iframeWrapperRef} />
         <RoomBoundary controlsRef={cameraControlsRef} />
 
         <CameraControls
@@ -245,7 +255,7 @@ export default function PSPViewer() {
         />
       </Canvas>
 
-      <IframeScreen zoomed={iframeReady && zoomSettled} onFadeOutComplete={handleIframeFadeOutComplete} />
+      <IframeScreen ref={iframeWrapperRef} visible={iframeVisible} />
 
       {!zoomed && (
         <>
