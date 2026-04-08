@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'PSP Viewer',
+  title: 'katsu',
   description: '3D PSP Model with Interactive Screen',
 }
 

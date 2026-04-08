@@ -106,7 +106,7 @@ export default function PSPViewer() {
   }, [])
 
   const handleZoomOut = useCallback(() => {
-    setIframeReady(false) // Start iframe fade-out, camera zoom will happen in onFadeOutComplete
+    setIframeReady(false)
   }, [])
 
   const handleIframeFadeOutComplete = useCallback(() => {
@@ -205,7 +205,7 @@ export default function PSPViewer() {
         />
 
         <EffectComposer>
-          <Vignette eskil={false} offset={0.25} darkness={0.65} />
+          <Vignette eskil={false} offset={0.05} darkness={0.85} color="#f8f8f8" />
         </EffectComposer>
 
         <DynamicCameraController
@@ -247,46 +247,107 @@ export default function PSPViewer() {
 
       <IframeScreen zoomed={iframeReady && zoomSettled} onFadeOutComplete={handleIframeFadeOutComplete} />
 
+      {!zoomed && (
+        <>
+          <div
+            style={{
+              position: 'absolute',
+              top: 28,
+              left: 28,
+              zIndex: 10,
+              fontSize: 14,
+              fontWeight: 600,
+              color: '#fff',
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+            }}
+          >
+            katsu
+          </div>
+
+          <div
+            style={{
+              position: 'absolute',
+              top: 28,
+              right: 28,
+              zIndex: 10,
+              fontSize: 12,
+              color: '#fff',
+              opacity: 0.5,
+              letterSpacing: '0.08em',
+            }}
+          >
+            drag to orbit · scroll to zoom
+          </div>
+
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 28,
+              right: 28,
+              zIndex: 10,
+              fontSize: 11,
+              color: '#fff',
+              opacity: 0.35,
+              letterSpacing: '0.05em',
+            }}
+          >
+            © 2026
+          </div>
+
+          <a
+            href="https://github.com/kofolmarko"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              position: 'absolute',
+              bottom: 28,
+              left: 28,
+              zIndex: 10,
+              fontSize: 11,
+              color: '#fff',
+              opacity: 0.35,
+              letterSpacing: '0.05em',
+              textDecoration: 'none',
+            }}
+          >
+            created by kofolmarko
+          </a>
+
+          <button
+            onClick={() => setZoomed(true)}
+            className="underline-btn"
+            style={{
+              position: 'absolute',
+              bottom: 32,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 10,
+              fontSize: 18,
+              fontWeight: 500,
+              letterSpacing: '0.04em',
+              userSelect: 'none',
+              textAlign: 'center',
+            }}
+          >
+            click the PSP to interact
+          </button>
+        </>
+      )}
+
       {zoomed && (
         <button
           onClick={handleZoomOut}
+          className="underline-btn"
           style={{
             position: 'absolute',
-            top: 20,
-            left: 20,
+            top: 24,
+            left: 28,
             zIndex: 10,
-            padding: '8px 18px',
-            background: 'rgba(255, 255, 255, 0.72)',
-            color: '#333',
-            border: '1px solid rgba(0,0,0,0.10)',
-            borderRadius: 8,
-            cursor: 'pointer',
-            fontSize: 14,
-            backdropFilter: 'blur(6px)',
-            letterSpacing: '0.02em'
           }}
         >
-          ← Back
+          Back
         </button>
-      )}
-
-      {!zoomed && (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 28,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 10,
-            color: 'rgba(60, 40, 20, 0.4)',
-            fontSize: 13,
-            letterSpacing: '0.07em',
-            pointerEvents: 'none',
-            userSelect: 'none'
-          }}
-        >
-          click the PSP to interact
-        </div>
       )}
     </div>
   )
