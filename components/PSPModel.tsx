@@ -24,6 +24,7 @@ interface PSPModelProps {
   clickable?: boolean
   onHoverChange?: (h: boolean) => void
   zoomed?: boolean
+  onLoad?: () => void
 }
 
 const BEAM_HEIGHT     = 35
@@ -68,9 +69,14 @@ const beamFrag = /* glsl */`
   }
 `
 
-export default function PSPModel({ onClick, clickable = false, onHoverChange, zoomed = false }: PSPModelProps) {
+export default function PSPModel({ onClick, clickable = false, onHoverChange, zoomed = false, onLoad }: PSPModelProps) {
   const { scene } = useGLTF(PSP_CONFIG.model.path)
   const [hovered, setHovered] = useState(false)
+
+  // useGLTF suspends until the GLB is fetched, so this effect fires only after
+  // the model is fully loaded and the component has mounted for the first time.
+  const onLoadRef = useRef(onLoad)
+  useEffect(() => { onLoadRef.current?.() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const [hoveredButton, setHoveredButton] = useState<string | null>(null)
   // Basis positions for button meshes, captured once — used to animate a press.
   const buttonBaseRef = useRef<Map<string, THREE.Vector3>>(new Map())

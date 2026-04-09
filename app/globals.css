@@ -18,15 +18,132 @@ body {
   color: white;
 }
 
-#loading {
+/* ── Loading Screen ─────────────────────────────────────────── */
+
+.ls-root {
   position: fixed;
-  top: 50%;
+  inset: 0;
+  z-index: 100;
+  background: #080808;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.ls-root.ls-exiting {
+  animation: ls-exit 0.45s ease forwards;
+}
+
+@keyframes ls-exit {
+  to { opacity: 0; }
+}
+
+/* ── Terminal window chrome ── */
+
+.ls-window {
+  width: min(520px, 88vw);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #141414;
+  box-shadow:
+    0 32px 80px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+
+.ls-titlebar {
+  display: flex;
+  align-items: center;
+  padding: 11px 14px;
+  background: #1e1e1e;
+  border-bottom: 1px solid #2a2a2a;
+  position: relative;
+}
+
+.ls-traffic {
+  display: flex;
+  gap: 7px;
+  flex-shrink: 0;
+}
+
+.ls-td {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: block;
+}
+
+.ls-td-red    { background: #ff5f57; }
+.ls-td-yellow { background: #febc2e; }
+.ls-td-green  { background: #28c840; }
+
+.ls-title-text {
+  position: absolute;
   left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 1.5rem;
-  color: white;
-  z-index: 1000;
-  transition: opacity 0.5s;
+  transform: translateX(-50%);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 0.72rem;
+  color: #555;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+}
+
+/* ── Terminal body ── */
+
+.ls-terminal {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: clamp(0.7rem, 1.5vw, 0.875rem);
+  color: #c8c8c8;
+  line-height: 1.85;
+  padding: 22px 26px 26px;
+  min-height: 80px;
+}
+
+/* ── Lines — typewriter reveal ── */
+
+.ls-line {
+  display: block;
+  width: fit-content;
+  white-space: nowrap;
+  clip-path: inset(0 100% 0 0);
+}
+
+@keyframes typewriter {
+  from { clip-path: inset(0 100% 0 0); }
+  to   { clip-path: inset(0 0% 0 0); }
+}
+
+/* ── Braille loader ── */
+
+.ls-loader {
+  display: inline-flex;
+  align-items: center;
+  height: 1.3em;
+  margin-top: 0.3em;
+}
+
+.ls-braille {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 1.1em;
+  color: #777;
+}
+
+/* ── Prompt ── */
+
+.ls-prompt-line {
+  margin-top: 1.6em;
+  color: #c8c8c8;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: clamp(0.7rem, 1.5vw, 0.875rem);
+}
+
+.ls-cursor {
+  animation: ls-blink 1s step-end infinite;
+}
+
+@keyframes ls-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
 }
 
 .underline-btn {

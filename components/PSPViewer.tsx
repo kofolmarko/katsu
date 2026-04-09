@@ -88,7 +88,7 @@ function DynamicCameraController({
 // the PSP across the screen.
 const CAMERA_SMOOTH_MS = 500
 
-export default function PSPViewer() {
+export default function PSPViewer({ onSceneReady }: { onSceneReady?: () => void } = {}) {
   const [zoomed, setZoomed] = useState(false)
   const [iframeVisible, setIframeVisible] = useState(false)
   const cameraControlsRef = useRef<CameraControls>(null)
@@ -212,6 +212,7 @@ export default function PSPViewer() {
           onClick={!zoomed ? () => setZoomed(true) : undefined}
           clickable={!zoomed}
           zoomed={zoomed}
+          onLoad={onSceneReady}
         />
 
         <EffectComposer>
@@ -346,18 +347,39 @@ export default function PSPViewer() {
       )}
 
       {zoomed && (
-        <button
-          onClick={handleZoomOut}
-          className="underline-btn"
-          style={{
-            position: 'absolute',
-            top: 24,
-            left: 28,
-            zIndex: 10,
-          }}
-        >
-          Back
-        </button>
+        <>
+          <button
+            onClick={handleZoomOut}
+            className="underline-btn"
+            style={{
+              position: 'absolute',
+              top: 24,
+              left: 28,
+              zIndex: 10,
+            }}
+          >
+            Back
+          </button>
+
+          <a
+            href={PSP_CONFIG.screen.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              position: 'absolute',
+              top: 28,
+              right: 28,
+              zIndex: 10,
+              fontSize: 11,
+              color: '#fff',
+              opacity: 0.35,
+              letterSpacing: '0.05em',
+              textDecoration: 'none',
+            }}
+          >
+            open in new tab
+          </a>
+        </>
       )}
     </div>
   )

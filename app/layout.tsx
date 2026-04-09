@@ -4,6 +4,7 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'katsu',
   description: '3D PSP Model with Interactive Screen',
+  icons: '/favicon.png',
 }
 
 export default function RootLayout({
